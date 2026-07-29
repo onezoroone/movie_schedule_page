@@ -168,6 +168,9 @@
         elements.posterGrid.innerHTML = items.map((item) => {
             const poster = safeUrl(item.tmdbImage || item.image, "/favicon.svg");
             const link = safeUrl(item.href);
+            const tmdbLink = item.tmdbId && item.tmdbHref
+                ? `<a class="tmdb-link" href="${escapeHtml(safeUrl(item.tmdbHref))}" target="_blank" rel="noreferrer">TMDB #${escapeHtml(item.tmdbId)} ↗</a>`
+                : "";
             const status = item.titleStatus === "vietnamese"
                 ? "Tên Việt từ TMDB"
                 : item.titleStatus === "tmdb-original"
@@ -186,7 +189,11 @@
                     </div>
                     <h3><a href="${escapeHtml(link)}" target="_blank" rel="noreferrer">${escapeHtml(item.vietnameseTitle)}</a></h3>
                     <p>${escapeHtml(item.mdlTitle)}${item.year ? ` · ${escapeHtml(item.year)}` : ""}</p>
-                    <footer><span>${escapeHtml(item.country)}</span><span data-status="${escapeHtml(item.titleStatus)}">${status}</span></footer>
+                    <footer>
+                        <span>${escapeHtml(item.country)}</span>
+                        <span data-status="${escapeHtml(item.titleStatus)}">${status}</span>
+                    </footer>
+                    ${tmdbLink}
                 </article>
             `;
         }).join("");

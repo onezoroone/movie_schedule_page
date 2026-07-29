@@ -47,7 +47,11 @@ class CalendarApiTest extends TestCase
                 'Cửa Hàng Sát Thủ — Mùa 2',
             )
             ->assertJsonPath('items.0.hasVietnameseTitle', true)
-            ->assertJsonPath('items.0.titleStatus', 'vietnamese');
+            ->assertJsonPath('items.0.titleStatus', 'vietnamese')
+            ->assertJsonPath(
+                'items.0.tmdbHref',
+                'https://www.themoviedb.org/tv/42?language=vi-VN',
+            );
     }
 
     public function test_it_falls_back_to_the_mydramalist_title_when_tmdb_has_no_vietnamese_title(): void
@@ -83,7 +87,11 @@ class CalendarApiTest extends TestCase
                 'A Shop for Killers Season 2',
             )
             ->assertJsonPath('items.0.hasVietnameseTitle', false)
-            ->assertJsonPath('items.0.titleStatus', 'tmdb-original');
+            ->assertJsonPath('items.0.titleStatus', 'tmdb-original')
+            ->assertJsonPath(
+                'items.0.tmdbHref',
+                'https://www.themoviedb.org/tv/42?language=vi-VN',
+            );
     }
 
     public function test_it_serves_a_file_cache_when_the_source_is_unchanged(): void
@@ -99,7 +107,8 @@ class CalendarApiTest extends TestCase
         $first = $this->getJson('/api/calendar');
         $first->assertOk()
             ->assertHeader('X-Calendar-Cache', 'miss')
-            ->assertJsonPath('items.0.vietnameseTitle', 'A Shop for Killers Season 2');
+            ->assertJsonPath('items.0.vietnameseTitle', 'A Shop for Killers Season 2')
+            ->assertJsonPath('items.0.tmdbHref', null);
 
         $second = $this->getJson('/api/calendar');
         $second->assertOk()
