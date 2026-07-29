@@ -7,7 +7,7 @@
     <meta name="theme-color" content="#d84132">
     <title>Lịch Phim Châu Á</title>
     <link rel="icon" href="/favicon.svg" type="image/svg+xml">
-    <link rel="stylesheet" href="/assets/calendar.css">
+    <link rel="stylesheet" href="/assets/calendar.css?v=2">
     <script>
         window.calendarConfig = {
             apiUrl: @json(route('api.calendar')),
