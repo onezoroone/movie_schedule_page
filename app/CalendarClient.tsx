@@ -21,6 +21,7 @@ type CalendarItem = {
   rating: number | null;
   year: string;
   hasVietnameseTitle: boolean;
+  titleStatus: "vietnamese" | "tmdb-original" | "unmatched";
 };
 
 type DayOption = {
@@ -157,8 +158,8 @@ export default function CalendarClient() {
   const selectedDay = data?.days.find(
     (day) => day.date === data.selectedDate,
   );
-  const matchedCount =
-    data?.items.filter((item) => item.tmdbId !== null).length ?? 0;
+  const vietnameseCount =
+    data?.items.filter((item) => item.hasVietnameseTitle).length ?? 0;
 
   return (
     <main>
@@ -197,8 +198,8 @@ export default function CalendarClient() {
             <span>Lịch phát hôm nay</span>
           </div>
           <div>
-            <strong>{matchedCount}</strong>
-            <span>Đã đối chiếu TMDB</span>
+            <strong>{vietnameseCount}</strong>
+            <span>Có tên Việt từ TMDB</span>
           </div>
           <div className="timezone-chip">
             <span>GMT+7</span>
@@ -349,8 +350,12 @@ export default function CalendarClient() {
                     </p>
                     <div className="card-footer">
                       <span>{item.country}</span>
-                      <span>
-                        {item.tmdbId ? "Đã khớp TMDB" : "Tên từ MyDramaList"}
+                      <span data-status={item.titleStatus}>
+                        {item.titleStatus === "vietnamese"
+                          ? "Tên Việt từ TMDB"
+                          : item.titleStatus === "tmdb-original"
+                            ? "TMDB chưa có tên Việt"
+                            : "Chưa khớp TMDB"}
                       </span>
                     </div>
                   </div>

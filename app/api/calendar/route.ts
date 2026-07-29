@@ -17,6 +17,7 @@ type CalendarItem = {
   rating: number | null;
   year: string;
   hasVietnameseTitle: boolean;
+  titleStatus: "vietnamese" | "tmdb-original" | "unmatched";
 };
 
 type DayOption = {
@@ -61,10 +62,38 @@ type TmdbSearchResult = {
   popularity?: number;
 };
 
+type TmdbTranslation = {
+  iso_639_1?: string;
+  iso_3166_1?: string;
+  data?: {
+    name?: string;
+    title?: string;
+  };
+};
+
+type TmdbDetails = TmdbSearchResult & {
+  translations?: {
+    translations?: TmdbTranslation[];
+  };
+  alternative_titles?: {
+    results?: Array<{
+      iso_3166_1?: string;
+      title?: string;
+    }>;
+  };
+};
+
+type TmdbMatch = {
+  search: TmdbSearchResult;
+  details: TmdbDetails;
+  mediaType: "movie" | "tv";
+  vietnameseTitle: string | null;
+};
+
 const MDL_URL =
   "https://mydramalist.com/episode-calendar?view=small&scope=all&tz=Asia%2FSaigon";
 const TMDB_API_URL = "https://api.themoviedb.org/3";
-const tmdbCache = new Map<string, Promise<TmdbSearchResult | null>>();
+const tmdbCache = new Map<string, Promise<TmdbMatch | null>>();
 
 const countryByTimezone: Record<string, string> = {
   "Asia/Seoul": "Hàn Quốc",
@@ -217,6 +246,31 @@ function normalizeTitle(value: string) {
     .trim();
 }
 
+function titleForTmdbSearch(value: string) {
+  return value
+    .replace(/\s+(?:season|part)\s+\d+(?:\s+master\s+ver\.?)?$/i, "")
+    .replace(/\s+\d+(?:st|nd|rd|th)\s+season$/i, "")
+    .trim();
+}
+
+function decorateVietnameseTitle(localizedTitle: string, sourceTitle: string) {
+  const season = sourceTitle.match(/\s+season\s+(\d+)/i)?.[1];
+  if (!season) return localizedTitle;
+
+  const normalizedLocalized = normalizeTitle(localizedTitle);
+  if (
+    normalizedLocalized.includes(`mua ${season}`) ||
+    normalizedLocalized.endsWith(` ${season}`)
+  ) {
+    return localizedTitle;
+  }
+
+  const masterSuffix = /master\s+ver\.?/i.test(sourceTitle)
+    ? " · Bản Master"
+    : "";
+  return `${localizedTitle} — Mùa ${season}${masterSuffix}`;
+}
+
 function titleScore(source: string, candidate: TmdbSearchResult) {
   const wanted = normalizeTitle(source);
   const names = [
@@ -237,6 +291,57 @@ function titleScore(source: string, candidate: TmdbSearchResult) {
   return exact + contained + Math.min(candidate.popularity ?? 0, 20);
 }
 
+async function fetchTmdb<T>(path: string, params: URLSearchParams) {
+  const url = `${TMDB_API_URL}${path}?${params}`;
+  let response: Response | null = null;
+
+  for (let attempt = 0; attempt < 3; attempt++) {
+    try {
+      response = await fetch(url, {
+        headers: { accept: "application/json" },
+      });
+      if (response.ok || response.status < 500) break;
+    } catch {
+      response = null;
+    }
+  }
+
+  if (!response?.ok) return null;
+  return (await response.json()) as T;
+}
+
+function getVietnameseTitle(
+  details: TmdbDetails,
+  mediaType: "movie" | "tv",
+) {
+  const translation = details.translations?.translations?.find(
+    (item) => item.iso_639_1 === "vi",
+  );
+  const translatedTitle =
+    mediaType === "movie"
+      ? translation?.data?.title
+      : translation?.data?.name;
+  if (translatedTitle?.trim()) return translatedTitle.trim();
+
+  const vietnamAlternative = details.alternative_titles?.results?.find(
+    (item) => item.iso_3166_1 === "VN" && item.title?.trim(),
+  )?.title;
+  if (vietnamAlternative?.trim()) return vietnamAlternative.trim();
+
+  const localizedTitle =
+    mediaType === "movie" ? details.title : details.name;
+  const originalTitle =
+    mediaType === "movie" ? details.original_title : details.original_name;
+  if (
+    localizedTitle?.trim() &&
+    normalizeTitle(localizedTitle) !== normalizeTitle(originalTitle ?? "")
+  ) {
+    return localizedTitle.trim();
+  }
+
+  return null;
+}
+
 async function searchTmdb(
   title: string,
   contentType: "movie" | "series",
@@ -247,34 +352,46 @@ async function searchTmdb(
   if (cached) return cached;
 
   const promise = (async () => {
-    const params = new URLSearchParams({
+    const mediaType = contentType === "movie" ? "movie" : "tv";
+    const queryTitle = titleForTmdbSearch(title);
+    const searchParams = new URLSearchParams({
       api_key: apiKey,
-      language: "vi-VN",
-      query: title,
+      language: "en-US",
+      query: queryTitle,
       include_adult: "false",
     });
-    const url = `${TMDB_API_URL}/search/multi?${params}`;
-    let response: Response | null = null;
-    for (let attempt = 0; attempt < 3; attempt++) {
-      try {
-        response = await fetch(url, {
-          headers: { accept: "application/json" },
-        });
-        if (response.ok || response.status < 500) break;
-      } catch {
-        response = null;
-      }
-    }
-    if (!response?.ok) return null;
-    const payload = (await response.json()) as { results?: TmdbSearchResult[] };
-    const expectedType = contentType === "movie" ? "movie" : "tv";
-    const candidates = (payload.results ?? []).filter(
-      (item) => item.media_type === expectedType,
+    const payload = await fetchTmdb<{ results?: TmdbSearchResult[] }>(
+      `/search/${mediaType}`,
+      searchParams,
     );
+    const candidates = payload?.results ?? [];
     if (!candidates.length) return null;
-    return candidates.sort(
-      (a, b) => titleScore(title, b) - titleScore(title, a),
-    )[0];
+    const ranked = candidates
+      .map((candidate) => ({
+        candidate,
+        score: titleScore(queryTitle, candidate),
+      }))
+      .sort((a, b) => b.score - a.score);
+    if (ranked[0].score < 30) return null;
+
+    const search = ranked[0].candidate;
+    const detailParams = new URLSearchParams({
+      api_key: apiKey,
+      language: "vi-VN",
+      append_to_response: "translations,alternative_titles",
+    });
+    const details = await fetchTmdb<TmdbDetails>(
+      `/${mediaType}/${search.id}`,
+      detailParams,
+    );
+    if (!details) return null;
+
+    return {
+      search,
+      details,
+      mediaType,
+      vietnameseTitle: getVietnameseTitle(details, mediaType),
+    } satisfies TmdbMatch;
   })()
     .catch(() => null)
     .then((result) => {
@@ -306,15 +423,30 @@ async function mapWithConcurrency<T, R>(
 }
 
 async function enrichItems(items: ParsedItem[], apiKey: string) {
-  return mapWithConcurrency(items, 6, async (item): Promise<CalendarItem> => {
+  return mapWithConcurrency(items, 4, async (item): Promise<CalendarItem> => {
     const match = await searchTmdb(item.title, item.contentType, apiKey);
-    const localizedTitle = match?.title || match?.name || item.title;
+    const details = match?.details;
+    const search = match?.search;
+    const localizedTitle = match?.vietnameseTitle
+      ? decorateVietnameseTitle(match.vietnameseTitle, item.title)
+      : details?.title ||
+        details?.name ||
+        search?.title ||
+        search?.name ||
+        item.title;
     const originalTitle =
-      match?.original_title || match?.original_name || item.title;
-    const hasVietnameseTitle =
-      Boolean(match) &&
-      normalizeTitle(localizedTitle) !== normalizeTitle(originalTitle);
-    const date = match?.release_date || match?.first_air_date || "";
+      details?.original_title ||
+      details?.original_name ||
+      search?.original_title ||
+      search?.original_name ||
+      item.title;
+    const hasVietnameseTitle = Boolean(match?.vietnameseTitle);
+    const date =
+      details?.release_date ||
+      details?.first_air_date ||
+      search?.release_date ||
+      search?.first_air_date ||
+      "";
 
     return {
       id: item.id,
@@ -323,25 +455,31 @@ async function enrichItems(items: ParsedItem[], apiKey: string) {
       originalTitle,
       href: item.href,
       image: item.image,
-      tmdbImage: match?.poster_path
-        ? `https://image.tmdb.org/t/p/w500${match.poster_path}`
+      tmdbImage: (details?.poster_path || search?.poster_path)
+        ? `https://image.tmdb.org/t/p/w500${details?.poster_path || search?.poster_path}`
         : null,
       episode: item.episode,
       time: item.time,
       timezone: item.timezone,
       country: item.country,
       contentType: item.contentType,
-      tmdbId: match?.id ?? null,
-      tmdbType: match?.media_type === "movie" || match?.media_type === "tv"
-        ? match.media_type
-        : null,
-      overview: match?.overview ?? "",
+      tmdbId: details?.id ?? search?.id ?? null,
+      tmdbType: match?.mediaType ?? null,
+      overview: details?.overview || search?.overview || "",
       rating:
-        typeof match?.vote_average === "number" && match.vote_average > 0
-          ? Math.round(match.vote_average * 10) / 10
+        typeof (details?.vote_average ?? search?.vote_average) === "number" &&
+        (details?.vote_average ?? search?.vote_average ?? 0) > 0
+          ? Math.round(
+              (details?.vote_average ?? search?.vote_average ?? 0) * 10,
+            ) / 10
           : null,
       year: date.slice(0, 4),
       hasVietnameseTitle,
+      titleStatus: hasVietnameseTitle
+        ? "vietnamese"
+        : match
+          ? "tmdb-original"
+          : "unmatched",
     };
   });
 }
@@ -403,6 +541,7 @@ export async function GET(request: Request) {
             rating: null,
             year: "",
             hasVietnameseTitle: false,
+            titleStatus: "unmatched",
           }),
         );
     const dayOptions: DayOption[] = days.map((day) => ({
