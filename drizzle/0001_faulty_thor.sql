@@ -1,1 +1,0 @@
-CREATE INDEX `calendar_cache_updated_at_idx` ON `calendar_cache` (`updated_at`);
