@@ -50,6 +50,42 @@ class CalendarApiTest extends TestCase
             ->assertJsonPath('items.0.titleStatus', 'vietnamese');
     }
 
+    public function test_it_falls_back_to_the_mydramalist_title_when_tmdb_has_no_vietnamese_title(): void
+    {
+        Storage::fake('local');
+        config()->set('services.tmdb.api_key', 'test-key');
+        config()->set('services.tmdb.base_url', 'https://api.tmdb.org/3');
+
+        Http::fake([
+            '*mydramalist.com/*' => Http::response($this->calendarHtml()),
+            '*api.tmdb.org/3/search/tv*' => Http::response([
+                'results' => [[
+                    'id' => 42,
+                    'name' => 'A Shop for Killers',
+                    'original_name' => '연애실험실',
+                    'popularity' => 100,
+                ]],
+            ]),
+            '*api.tmdb.org/3/tv/42*' => Http::response([
+                'id' => 42,
+                'name' => '연애실험실',
+                'original_name' => '연애실험실',
+                'first_air_date' => '2026-01-01',
+                'translations' => ['translations' => []],
+                'alternative_titles' => ['results' => []],
+            ]),
+        ]);
+
+        $this->getJson('/api/calendar')
+            ->assertOk()
+            ->assertJsonPath(
+                'items.0.vietnameseTitle',
+                'A Shop for Killers Season 2',
+            )
+            ->assertJsonPath('items.0.hasVietnameseTitle', false)
+            ->assertJsonPath('items.0.titleStatus', 'tmdb-original');
+    }
+
     public function test_it_serves_a_file_cache_when_the_source_is_unchanged(): void
     {
         Storage::fake('local');

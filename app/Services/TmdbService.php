@@ -43,9 +43,7 @@ class TmdbService
             $vietnameseTitle = $this->vietnameseTitle($detail, $mediaType);
             $localizedTitle = $vietnameseTitle
                 ? $this->decorateSeason($vietnameseTitle, $item['title'])
-                : ($detail[$mediaType === 'movie' ? 'title' : 'name']
-                    ?? $match['result'][$mediaType === 'movie' ? 'title' : 'name']
-                    ?? $item['title']);
+                : $item['title'];
             $originalTitle = $detail[
                 $mediaType === 'movie' ? 'original_title' : 'original_name'
             ] ?? $item['title'];
