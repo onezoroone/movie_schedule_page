@@ -106,6 +106,7 @@ export default function CalendarClient() {
     setError("");
     try {
       const params = new URLSearchParams();
+      params.set("v", "2");
       if (date) params.set("date", date);
       if (bustCache) params.set("_", Date.now().toString());
       const response = await fetch(`/api/calendar?${params}`, {
