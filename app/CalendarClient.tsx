@@ -38,6 +38,11 @@ type CalendarPayload = {
   tmdbEnabled: boolean;
   syncedAt: string;
   timezone: string;
+  cache?: {
+    status: "hit" | "miss" | "refreshed" | "stale";
+    updatedAt: string | null;
+    checkedAt: string;
+  };
   error?: string;
 };
 
@@ -106,9 +111,9 @@ export default function CalendarClient() {
     setError("");
     try {
       const params = new URLSearchParams();
-      params.set("v", "2");
+      params.set("v", "4");
       if (date) params.set("date", date);
-      if (bustCache) params.set("_", Date.now().toString());
+      if (bustCache) params.set("refresh", "1");
       const response = await fetch(`/api/calendar?${params}`, {
         cache: bustCache ? "no-store" : "default",
       });

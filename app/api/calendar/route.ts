@@ -1,3 +1,8 @@
+import {
+  readCalendarCache,
+  writeCalendarCache,
+} from "../../../db/calendar-cache";
+
 type CalendarItem = {
   id: string;
   mdlTitle: string;
@@ -25,6 +30,20 @@ type DayOption = {
   label: string;
   dayName: string;
   count: number;
+};
+
+type CalendarPayload = {
+  selectedDate: string;
+  days: DayOption[];
+  items: CalendarItem[];
+  tmdbEnabled: boolean;
+  syncedAt: string;
+  timezone: string;
+  cache: {
+    status: "hit" | "miss" | "refreshed" | "stale";
+    updatedAt: string | null;
+    checkedAt: string;
+  };
 };
 
 type ParsedItem = {
@@ -93,6 +112,7 @@ type TmdbMatch = {
 const MDL_URL =
   "https://mydramalist.com/episode-calendar?view=small&scope=all&tz=Asia%2FSaigon";
 const TMDB_API_URL = "https://api.themoviedb.org/3";
+const CACHE_DATA_VERSION = "calendar-v4";
 const tmdbCache = new Map<string, Promise<TmdbMatch | null>>();
 
 const countryByTimezone: Record<string, string> = {
@@ -493,7 +513,58 @@ function currentDateInVietnam() {
   }).format(new Date());
 }
 
+function calendarCacheKey(date: string) {
+  return `${CACHE_DATA_VERSION}:${date}`;
+}
+
+async function createSourceHash(day: ParsedDay) {
+  const source = JSON.stringify({
+    version: CACHE_DATA_VERSION,
+    date: day.date,
+    items: day.items.map((item) => ({
+      id: item.id,
+      title: item.title,
+      episode: item.episode,
+      time: item.time,
+      timezone: item.timezone,
+      image: item.image,
+    })),
+  });
+  const digest = await crypto.subtle.digest(
+    "SHA-256",
+    new TextEncoder().encode(source),
+  );
+  return Array.from(new Uint8Array(digest), (byte) =>
+    byte.toString(16).padStart(2, "0"),
+  ).join("");
+}
+
+function dayOptionsFrom(days: ParsedDay[]): DayOption[] {
+  return days.map((day) => ({
+    date: day.date,
+    label: day.label,
+    dayName: day.dayName,
+    count: day.items.length,
+  }));
+}
+
+function responseWithCache(payload: CalendarPayload) {
+  return Response.json(payload, {
+    headers: {
+      "Cache-Control": "private, no-store",
+      "X-Calendar-Cache": payload.cache.status,
+    },
+  });
+}
+
 export async function GET(request: Request) {
+  const searchParams = new URL(request.url).searchParams;
+  const requestedDate = searchParams.get("date");
+  const forceRefresh = searchParams.get("refresh") === "1";
+  const desiredDate = requestedDate || currentDateInVietnam();
+  const desiredCacheKey = calendarCacheKey(desiredDate);
+  const checkedAt = new Date().toISOString();
+
   try {
     const response = await fetch(MDL_URL, {
       headers: {
@@ -504,20 +575,35 @@ export async function GET(request: Request) {
       },
     });
 
-    if (!response.ok) {
-      throw new Error(`MyDramaList trả về lỗi ${response.status}`);
-    }
+    if (!response.ok) throw new Error(`MyDramaList trả về lỗi ${response.status}`);
 
     const days = parseCalendar(await response.text());
     if (!days.length) {
       throw new Error("Không đọc được lịch từ MyDramaList");
     }
 
-    const requestedDate = new URL(request.url).searchParams.get("date");
     const selectedDay =
       days.find((day) => day.date === requestedDate) ??
       days.find((day) => day.date === currentDateInVietnam()) ??
       days[0];
+    const sourceHash = await createSourceHash(selectedDay);
+    const cacheKey = calendarCacheKey(selectedDay.date);
+    const stored = await readCalendarCache(cacheKey);
+    const freshDays = dayOptionsFrom(days);
+
+    if (stored?.sourceHash === sourceHash && !forceRefresh) {
+      const cachedPayload = JSON.parse(stored.payload) as CalendarPayload;
+      return responseWithCache({
+        ...cachedPayload,
+        days: freshDays,
+        cache: {
+          status: "hit",
+          updatedAt: stored.updatedAt,
+          checkedAt,
+        },
+      });
+    }
+
     const apiKey = process.env.TMDB_API_KEY?.trim() ?? "";
     const items = apiKey
       ? await enrichItems(selectedDay.items, apiKey)
@@ -544,29 +630,40 @@ export async function GET(request: Request) {
             titleStatus: "unmatched",
           }),
         );
-    const dayOptions: DayOption[] = days.map((day) => ({
-      date: day.date,
-      label: day.label,
-      dayName: day.dayName,
-      count: day.items.length,
-    }));
+    const payload: CalendarPayload = {
+      selectedDate: selectedDay.date,
+      days: freshDays,
+      items,
+      tmdbEnabled: Boolean(apiKey),
+      syncedAt: new Date().toISOString(),
+      timezone: "Asia/Ho_Chi_Minh",
+      cache: {
+        status: stored ? "refreshed" : "miss",
+        updatedAt: stored?.updatedAt ?? null,
+        checkedAt,
+      },
+    };
 
-    return Response.json(
-      {
-        selectedDate: selectedDay.date,
-        days: dayOptions,
-        items,
-        tmdbEnabled: Boolean(apiKey),
-        syncedAt: new Date().toISOString(),
-        timezone: "Asia/Ho_Chi_Minh",
-      },
-      {
-        headers: {
-          "Cache-Control": "public, s-maxage=600, stale-while-revalidate=1800",
-        },
-      },
-    );
+    await writeCalendarCache(cacheKey, sourceHash, JSON.stringify(payload));
+    return responseWithCache(payload);
   } catch (error) {
+    try {
+      const stored = await readCalendarCache(desiredCacheKey);
+      if (stored) {
+        const cachedPayload = JSON.parse(stored.payload) as CalendarPayload;
+        return responseWithCache({
+          ...cachedPayload,
+          cache: {
+            status: "stale",
+            updatedAt: stored.updatedAt,
+            checkedAt,
+          },
+        });
+      }
+    } catch {
+      // Fall through to the original source error when durable cache is absent.
+    }
+
     const message =
       error instanceof Error ? error.message : "Không thể tải lịch phát sóng";
     return Response.json({ error: message }, { status: 502 });
