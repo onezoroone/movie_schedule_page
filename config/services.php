@@ -49,4 +49,9 @@ return [
         'image_url' => env('TMDB_IMAGE_URL', 'https://image.tmdb.org/t/p/w500'),
     ],
 
+    'tvmaze' => [
+        'base_url' => env('TVMAZE_BASE_URL', 'https://api.tvmaze.com'),
+        'check_interval' => (int) env('TVMAZE_CHECK_SECONDS', 1800),
+    ],
+
 ];

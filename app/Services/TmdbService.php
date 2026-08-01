@@ -54,10 +54,15 @@ class TmdbService
                 ?? $match['result']['poster_path']
                 ?? null;
             $rating = (float) ($detail['vote_average'] ?? 0);
+            $sourceTitle = $item['title'];
 
             return [
                 'id' => $item['id'],
-                'mdlTitle' => $item['title'],
+                'mdlTitle' => $sourceTitle,
+                'sourceTitle' => $sourceTitle,
+                'sourceName' => $item['sourceName'] ?? 'MyDramaList',
+                'sourceId' => $item['sourceId'] ?? $item['id'],
+                'sourceHref' => $item['sourceHref'] ?? $item['href'],
                 'vietnameseTitle' => $localizedTitle,
                 'originalTitle' => $originalTitle,
                 'href' => $item['href'],
@@ -77,9 +82,12 @@ class TmdbService
                     $mediaType,
                     $detail['id'] ?? $match['result']['id'],
                 ),
-                'overview' => $detail['overview'] ?? '',
-                'rating' => $rating > 0 ? round($rating, 1) : null,
-                'year' => substr($date, 0, 4),
+                'overview' => ($detail['overview'] ?? '')
+                    ?: ($item['overview'] ?? ''),
+                'rating' => $rating > 0
+                    ? round($rating, 1)
+                    : ($item['rating'] ?? null),
+                'year' => substr($date, 0, 4) ?: ($item['year'] ?? ''),
                 'hasVietnameseTitle' => $vietnameseTitle !== null,
                 'titleStatus' => $vietnameseTitle
                     ? 'vietnamese'
@@ -339,6 +347,10 @@ class TmdbService
         return [
             'id' => $item['id'],
             'mdlTitle' => $item['title'],
+            'sourceTitle' => $item['title'],
+            'sourceName' => $item['sourceName'] ?? 'MyDramaList',
+            'sourceId' => $item['sourceId'] ?? $item['id'],
+            'sourceHref' => $item['sourceHref'] ?? $item['href'],
             'vietnameseTitle' => $item['title'],
             'originalTitle' => $item['title'],
             'href' => $item['href'],
@@ -352,9 +364,9 @@ class TmdbService
             'tmdbId' => null,
             'tmdbType' => null,
             'tmdbHref' => null,
-            'overview' => '',
-            'rating' => null,
-            'year' => '',
+            'overview' => $item['overview'] ?? '',
+            'rating' => $item['rating'] ?? null,
+            'year' => $item['year'] ?? '',
             'hasVietnameseTitle' => false,
             'titleStatus' => 'unmatched',
         ];

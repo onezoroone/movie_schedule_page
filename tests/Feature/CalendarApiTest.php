@@ -117,7 +117,41 @@ class CalendarApiTest extends TestCase
 
         Http::assertSentCount(1);
         Storage::disk('local')->assertExists(
-            'calendar-cache/laravel-v1/'.now('Asia/Ho_Chi_Minh')->format('Y-m-d').'.json',
+            'calendar-cache/laravel-v2/asia/'.now('Asia/Ho_Chi_Minh')->format('Y-m-d').'.json',
+        );
+    }
+
+    public function test_it_serves_western_shows_from_tvmaze(): void
+    {
+        Storage::fake('local');
+        config()->set('services.tmdb.api_key', '');
+
+        Http::fake([
+            '*api.tvmaze.com/schedule/web*' => Http::response([]),
+            '*api.tvmaze.com/schedule*' => Http::response([
+                $this->tvmazeEpisode(),
+                $this->tvmazeEpisode(99124, 5),
+            ]),
+        ]);
+
+        $response = $this->getJson('/api/calendar?source=western');
+
+        $response->assertOk()
+            ->assertJsonPath('source', 'western')
+            ->assertJsonPath('sourceLabel', 'TVmaze · Âu Mỹ')
+            ->assertJsonPath('items.0.vietnameseTitle', 'The Last Frontier')
+            ->assertJsonPath('items.0.sourceName', 'TVmaze')
+            ->assertJsonPath('items.0.sourceId', 81234)
+            ->assertJsonPath('items.0.episode', 'Mùa 1 · Tập 4-5')
+            ->assertJsonCount(1, 'items')
+            ->assertJsonPath(
+                'items.0.sourceHref',
+                'https://www.tvmaze.com/shows/81234/the-last-frontier',
+            );
+
+        Storage::disk('local')->assertExists(
+            'calendar-cache/laravel-v2/western/'
+                .now('Asia/Ho_Chi_Minh')->format('Y-m-d').'.json',
         );
     }
 
@@ -155,5 +189,41 @@ class CalendarApiTest extends TestCase
           </div>
         </div>
         HTML;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    protected function tvmazeEpisode(
+        int $episodeId = 99123,
+        int $number = 4,
+    ): array {
+        return [
+            'id' => $episodeId,
+            'name' => "Episode {$number}",
+            'season' => 1,
+            'number' => $number,
+            'airstamp' => now('Asia/Ho_Chi_Minh')->startOfDay()->toIso8601String(),
+            'show' => [
+                'id' => 81234,
+                'url' => 'https://www.tvmaze.com/shows/81234/the-last-frontier',
+                'name' => 'The Last Frontier',
+                'type' => 'Scripted',
+                'language' => 'English',
+                'premiered' => '2025-10-10',
+                'rating' => ['average' => 7.2],
+                'network' => [
+                    'country' => [
+                        'name' => 'United States',
+                        'code' => 'US',
+                    ],
+                ],
+                'webChannel' => null,
+                'image' => [
+                    'original' => 'https://static.tvmaze.com/poster.jpg',
+                ],
+                'summary' => '<p>A western drama.</p>',
+            ],
+        ];
     }
 }

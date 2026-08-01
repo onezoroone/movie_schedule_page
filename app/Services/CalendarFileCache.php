@@ -7,12 +7,12 @@ use Illuminate\Support\Facades\Storage;
 
 class CalendarFileCache
 {
-    public const VERSION = 'laravel-v1';
+    public const VERSION = 'laravel-v2';
 
     /**
      * @param  array<string, mixed>  $day
      */
-    public function fingerprint(array $day): string
+    public function fingerprint(array $day, string $source = 'asia'): string
     {
         $items = array_map(
             static fn (array $item): array => [
@@ -28,6 +28,7 @@ class CalendarFileCache
 
         return hash('sha256', json_encode([
             'version' => self::VERSION,
+            'source' => $source,
             'date' => $day['date'],
             'items' => $items,
         ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
@@ -36,9 +37,9 @@ class CalendarFileCache
     /**
      * @return array<string, mixed>|null
      */
-    public function read(string $date): ?array
+    public function read(string $date, string $source = 'asia'): ?array
     {
-        $path = $this->path($date);
+        $path = $this->path($date, $source);
 
         if (! Storage::disk('local')->exists($path)) {
             return null;
@@ -59,6 +60,7 @@ class CalendarFileCache
         string $date,
         string $sourceHash,
         array $payload,
+        string $source = 'asia',
     ): array {
         $now = now()->toIso8601String();
         $record = [
@@ -68,7 +70,7 @@ class CalendarFileCache
             'payload' => $payload,
         ];
 
-        $this->put($date, $record);
+        $this->put($date, $record, $source);
 
         return $record;
     }
@@ -105,9 +107,10 @@ class CalendarFileCache
     {
         $record['checked_at'] = now()->toIso8601String();
         $date = $record['payload']['selectedDate'] ?? null;
+        $source = $record['payload']['source'] ?? 'asia';
 
         if (is_string($date)) {
-            $this->put($date, $record);
+            $this->put($date, $record, (string) $source);
         }
 
         return $record;
@@ -116,10 +119,13 @@ class CalendarFileCache
     /**
      * @param  array<string, mixed>  $record
      */
-    protected function put(string $date, array $record): void
-    {
+    protected function put(
+        string $date,
+        array $record,
+        string $source = 'asia',
+    ): void {
         Storage::disk('local')->put(
-            $this->path($date),
+            $this->path($date, $source),
             json_encode(
                 $record,
                 JSON_PRETTY_PRINT
@@ -129,8 +135,8 @@ class CalendarFileCache
         );
     }
 
-    protected function path(string $date): string
+    protected function path(string $date, string $source): string
     {
-        return 'calendar-cache/'.self::VERSION.'/'.$date.'.json';
+        return 'calendar-cache/'.self::VERSION."/{$source}/{$date}.json";
     }
 }

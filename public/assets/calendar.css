@@ -45,6 +45,7 @@ button { cursor: pointer; }
 .brand strong { font-size: 15px; letter-spacing: .09em; }
 .brand small { color: var(--red); font: italic 15px Georgia, serif; }
 .source-note { display: flex; align-items: center; gap: 9px; color: var(--muted); font-size: 12px; }
+.source-note b { font-weight: 400; }
 .source-note span { width: 8px; height: 8px; border-radius: 50%; background: #4da66b; box-shadow: 0 0 0 4px #4da66b20; }
 
 .hero {
@@ -76,6 +77,11 @@ button { cursor: pointer; }
 .calendar-shell { padding: 50px max(36px, calc((100vw - 1378px)/2)) 80px; background: #ebe7dd; border-block: 1px solid var(--line); }
 .section-header { margin-bottom: 30px; display: flex; align-items: end; justify-content: space-between; }
 .section-header h2 { margin: 0; font: 400 clamp(34px,4vw,54px) Georgia, serif; letter-spacing: -.035em; }
+.section-actions { display: flex; align-items: center; gap: 10px; }
+.source-tabs { display: flex; border: 1px solid var(--ink); }
+.source-tabs button { height: 40px; padding: 0 16px; border: 0; background: transparent; color: var(--ink); font-size: 11px; font-weight: 700; }
+.source-tabs button + button { border-left: 1px solid var(--ink); }
+.source-tabs button.active { background: var(--red); color: white; }
 .refresh-button { height: 42px; padding: 0 16px; border: 1px solid var(--ink); background: transparent; color: var(--ink); }
 .refresh-button:hover { background: var(--ink); color: white; }
 .refresh-button:disabled { opacity: .5; cursor: wait; }
@@ -114,7 +120,8 @@ button { cursor: pointer; }
 .movie-card > p { min-height: 2.6em; margin: 0; color: var(--muted); font-size: 10px; line-height: 1.4; }
 .movie-card > footer { margin-top: 11px; padding-top: 9px; display: flex; justify-content: space-between; gap: 8px; border-top: 1px solid var(--line); color: var(--muted); font-size: 8px; text-transform: uppercase; }
 .movie-card > footer span:last-child { color: #50745e; text-align: right; }
-.tmdb-link {
+.external-links { display: flex; flex-wrap: wrap; gap: 6px 12px; }
+.tmdb-link, .source-link {
     width: fit-content;
     margin-top: 8px;
     display: block;
@@ -122,7 +129,7 @@ button { cursor: pointer; }
     font: 700 9px/1.4 monospace;
     letter-spacing: .04em;
 }
-.tmdb-link:hover { color: var(--red); text-decoration: underline; }
+.tmdb-link:hover, .source-link:hover { color: var(--red); text-decoration: underline; }
 .skeleton .poster, .skeleton i { display: block; background: #d5d0c6; animation: pulse 1.3s infinite; }
 .skeleton i { width: 80%; height: 12px; margin-top: 10px; }
 .skeleton i:last-child { width: 55%; }
@@ -150,6 +157,8 @@ body > footer p { max-width: 620px; margin: 4px 0 0; text-align: right; }
     .hero-stats { margin-top: 42px; }
     .calendar-shell { padding: 38px 14px 62px; }
     .section-header h2 { font-size: 32px; }
+    .section-header { align-items: flex-start; gap: 20px; }
+    .section-actions { flex-direction: column; align-items: stretch; }
     .day-tabs { grid-template-columns: repeat(7,minmax(72px,1fr)); }
     .toolbar { grid-template-columns: 1fr; }
     .switch-control { justify-self: end; }

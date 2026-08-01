@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Services\CalendarFileCache;
 use App\Services\MyDramaListService;
 use App\Services\TmdbService;
+use App\Services\TvmazeService;
 use Carbon\CarbonImmutable;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -15,25 +16,29 @@ class CalendarController extends Controller
 {
     public function __construct(
         protected MyDramaListService $myDramaList,
+        protected TvmazeService $tvmaze,
         protected TmdbService $tmdb,
         protected CalendarFileCache $fileCache,
     ) {}
 
     public function show(Request $request): JsonResponse
     {
+        $source = $request->string('source')->lower()->toString() === 'western'
+            ? 'western'
+            : 'asia';
         $requestedDate = $request->date('date')?->format('Y-m-d');
         $desiredDate = $requestedDate ?? CarbonImmutable::now(
             'Asia/Ho_Chi_Minh',
         )->format('Y-m-d');
         $forceRefresh = $request->boolean('refresh');
         $checkedAt = now()->toIso8601String();
-        $cached = $this->fileCache->read($desiredDate);
+        $cached = $this->fileCache->read($desiredDate, $source);
 
         if (
             ! $forceRefresh
             && $this->fileCache->isFresh(
                 $cached,
-                (int) config('services.mydramalist.check_interval', 900),
+                $this->checkInterval($source),
             )
         ) {
             return $this->cachedResponse(
@@ -45,11 +50,13 @@ class CalendarController extends Controller
         }
 
         try {
-            $days = $this->myDramaList->fetchCalendar();
+            $days = $source === 'western'
+                ? $this->tvmaze->fetchCalendar($desiredDate)
+                : $this->myDramaList->fetchCalendar();
             $selectedDay = collect($days)->firstWhere('date', $desiredDate)
                 ?? $days[0];
-            $sourceHash = $this->fileCache->fingerprint($selectedDay);
-            $cached = $this->fileCache->read($selectedDay['date']);
+            $sourceHash = $this->fileCache->fingerprint($selectedDay, $source);
+            $cached = $this->fileCache->read($selectedDay['date'], $source);
             $dayOptions = $this->dayOptions($days);
 
             if (
@@ -67,7 +74,7 @@ class CalendarController extends Controller
             }
 
             return Cache::store('file')->lock(
-                'calendar-refresh:'.$selectedDay['date'],
+                "calendar-refresh:{$source}:{$selectedDay['date']}",
                 180,
             )->block(180, function () use (
                 $selectedDay,
@@ -75,8 +82,12 @@ class CalendarController extends Controller
                 $dayOptions,
                 $checkedAt,
                 $forceRefresh,
+                $source,
             ): JsonResponse {
-                $latest = $this->fileCache->read($selectedDay['date']);
+                $latest = $this->fileCache->read(
+                    $selectedDay['date'],
+                    $source,
+                );
 
                 if (
                     ! $forceRefresh
@@ -102,11 +113,16 @@ class CalendarController extends Controller
                     )) !== '',
                     'syncedAt' => now()->toIso8601String(),
                     'timezone' => 'Asia/Ho_Chi_Minh',
+                    'source' => $source,
+                    'sourceLabel' => $source === 'western'
+                        ? 'TVmaze · Âu Mỹ'
+                        : 'MyDramaList · Châu Á',
                 ];
                 $record = $this->fileCache->write(
                     $selectedDay['date'],
                     $sourceHash,
                     $payload,
+                    $source,
                 );
 
                 return $this->json([
@@ -119,7 +135,7 @@ class CalendarController extends Controller
                 ]);
             });
         } catch (Throwable $error) {
-            $cached = $this->fileCache->read($desiredDate);
+            $cached = $this->fileCache->read($desiredDate, $source);
 
             if ($cached) {
                 return $this->cachedResponse(
@@ -136,6 +152,16 @@ class CalendarController extends Controller
                 'error' => 'Không thể tải lịch phát sóng.',
             ], 502);
         }
+    }
+
+    protected function checkInterval(string $source): int
+    {
+        return (int) config(
+            $source === 'western'
+                ? 'services.tvmaze.check_interval'
+                : 'services.mydramalist.check_interval',
+            900,
+        );
     }
 
     /**

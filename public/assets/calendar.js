@@ -4,6 +4,7 @@
         query: "",
         country: "Tất cả",
         vietnameseOnly: false,
+        source: "asia",
         loading: false,
     };
 
@@ -12,6 +13,8 @@
         vietnameseCount: document.querySelector("#vietnameseCount"),
         selectedDayTitle: document.querySelector("#selectedDayTitle"),
         refreshButton: document.querySelector("#refreshButton"),
+        sourceTabs: document.querySelector("#sourceTabs"),
+        sourceNoteText: document.querySelector("#sourceNoteText"),
         dayTabs: document.querySelector("#dayTabs"),
         searchInput: document.querySelector("#searchInput"),
         countryFilters: document.querySelector("#countryFilters"),
@@ -56,15 +59,17 @@
         `).join("");
     }
 
-    async function loadCalendar(date = "", refresh = false) {
+    async function loadCalendar(date = "", refresh = false, source = state.source) {
         if (state.loading) return;
         state.loading = true;
+        state.source = source;
         elements.refreshButton.disabled = true;
         elements.errorState.hidden = true;
         skeleton();
 
         const url = new URL(window.calendarConfig.apiUrl, window.location.origin);
-        url.searchParams.set("v", "1");
+        url.searchParams.set("v", "2");
+        url.searchParams.set("source", source);
         if (date) url.searchParams.set("date", date);
         if (refresh) url.searchParams.set("refresh", "1");
 
@@ -73,6 +78,7 @@
             const payload = await response.json();
             if (!response.ok) throw new Error(payload.error || "Không thể tải dữ liệu");
             state.data = payload;
+            state.source = payload.source || source;
             state.country = "Tất cả";
             render();
         } catch (error) {
@@ -98,14 +104,24 @@
         elements.totalCount.textContent = state.data.items.length;
         elements.vietnameseCount.textContent = vietnameseCount;
         elements.selectedDayTitle.textContent = selected
-            ? `${selected.dayName}, ${selected.label}`
+            ? `${selected.dayName}, ${selected.label} · ${state.data.sourceLabel}`
             : "Lịch phát sóng";
+        elements.sourceNoteText.textContent = state.source === "western"
+            ? "Cập nhật từ TVmaze"
+            : "Cập nhật từ MyDramaList";
         elements.cacheStatus.textContent =
             cacheLabel[state.data.cache?.status] || "";
 
         renderDays();
+        renderSources();
         renderCountries();
         renderCards();
+    }
+
+    function renderSources() {
+        elements.sourceTabs.querySelectorAll("[data-source]").forEach((button) => {
+            button.classList.toggle("active", button.dataset.source === state.source);
+        });
     }
 
     function renderDays() {
@@ -144,7 +160,7 @@
         const items = state.data.items.filter((item) => {
             const searchable = [
                 item.vietnameseTitle,
-                item.mdlTitle,
+                item.sourceTitle || item.mdlTitle,
                 item.originalTitle,
                 item.episode,
             ].join(" ").toLocaleLowerCase("vi");
@@ -171,6 +187,9 @@
             const tmdbLink = item.tmdbId && item.tmdbHref
                 ? `<a class="tmdb-link" href="${escapeHtml(safeUrl(item.tmdbHref))}" target="_blank" rel="noreferrer">TMDB #${escapeHtml(item.tmdbId)} ↗</a>`
                 : "";
+            const sourceLink = item.sourceName === "TVmaze" && item.sourceHref
+                ? `<a class="source-link" href="${escapeHtml(safeUrl(item.sourceHref))}" target="_blank" rel="noreferrer">TVmaze #${escapeHtml(item.sourceId)} ↗</a>`
+                : "";
             const status = item.titleStatus === "vietnamese"
                 ? "Tên Việt từ TMDB"
                 : item.titleStatus === "tmdb-original"
@@ -188,12 +207,12 @@
                         <time>${escapeHtml(item.time)}</time>
                     </div>
                     <h3><a href="${escapeHtml(link)}" target="_blank" rel="noreferrer">${escapeHtml(item.vietnameseTitle)}</a></h3>
-                    <p>${escapeHtml(item.mdlTitle)}${item.year ? ` · ${escapeHtml(item.year)}` : ""}</p>
+                    <p>${escapeHtml(item.sourceTitle || item.mdlTitle)}${item.year ? ` · ${escapeHtml(item.year)}` : ""}</p>
                     <footer>
                         <span>${escapeHtml(item.country)}</span>
                         <span data-status="${escapeHtml(item.titleStatus)}">${status}</span>
                     </footer>
-                    ${tmdbLink}
+                    <div class="external-links">${sourceLink}${tmdbLink}</div>
                 </article>
             `;
         }).join("");
@@ -202,6 +221,12 @@
     elements.dayTabs.addEventListener("click", (event) => {
         const button = event.target.closest("[data-date]");
         if (button) loadCalendar(button.dataset.date);
+    });
+    elements.sourceTabs.addEventListener("click", (event) => {
+        const button = event.target.closest("[data-source]");
+        if (button && button.dataset.source !== state.source) {
+            loadCalendar("", false, button.dataset.source);
+        }
     });
     elements.countryFilters.addEventListener("click", (event) => {
         const button = event.target.closest("[data-country]");
