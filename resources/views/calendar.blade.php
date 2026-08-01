@@ -7,13 +7,13 @@
     <meta name="theme-color" content="#d84132">
     <title>Lịch Phim Châu Á & Âu Mỹ</title>
     <link rel="icon" href="/favicon.svg" type="image/svg+xml">
-    <link rel="stylesheet" href="/assets/calendar.css?v=4">
+    <link rel="stylesheet" href="/assets/calendar.css?v=5">
     <script>
         window.calendarConfig = {
             apiUrl: @json(route('api.calendar')),
         };
     </script>
-    <script src="/assets/calendar.js?v=4" defer></script>
+    <script src="/assets/calendar.js?v=5" defer></script>
 </head>
 <body>
     <header class="site-header">

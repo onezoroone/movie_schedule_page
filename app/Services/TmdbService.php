@@ -55,6 +55,12 @@ class TmdbService
                 ?? null;
             $rating = (float) ($detail['vote_average'] ?? 0);
             $sourceTitle = $item['title'];
+            $tmdbId = $detail['id'] ?? $match['result']['id'];
+            $tmdbHref = sprintf(
+                'https://www.themoviedb.org/%s/%s?language=vi-VN',
+                $mediaType,
+                $tmdbId,
+            );
 
             return [
                 'id' => $item['id'],
@@ -65,7 +71,7 @@ class TmdbService
                 'sourceHref' => $item['sourceHref'] ?? $item['href'],
                 'vietnameseTitle' => $localizedTitle,
                 'originalTitle' => $originalTitle,
-                'href' => $item['href'],
+                'href' => $tmdbHref,
                 'image' => $item['image'],
                 'tmdbImage' => $poster
                     ? rtrim((string) config('services.tmdb.image_url'), '/').$poster
@@ -75,13 +81,9 @@ class TmdbService
                 'timezone' => $item['timezone'],
                 'country' => $item['country'],
                 'contentType' => $item['contentType'],
-                'tmdbId' => $detail['id'] ?? $match['result']['id'],
+                'tmdbId' => $tmdbId,
                 'tmdbType' => $mediaType,
-                'tmdbHref' => sprintf(
-                    'https://www.themoviedb.org/%s/%s?language=vi-VN',
-                    $mediaType,
-                    $detail['id'] ?? $match['result']['id'],
-                ),
+                'tmdbHref' => $tmdbHref,
                 'overview' => ($detail['overview'] ?? '')
                     ?: ($item['overview'] ?? ''),
                 'rating' => $rating > 0

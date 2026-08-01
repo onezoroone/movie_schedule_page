@@ -187,9 +187,6 @@
             const tmdbLink = item.tmdbId && item.tmdbHref
                 ? `<a class="tmdb-link" href="${escapeHtml(safeUrl(item.tmdbHref))}" target="_blank" rel="noreferrer">TMDB #${escapeHtml(item.tmdbId)} ↗</a>`
                 : "";
-            const sourceLink = item.sourceName === "TVmaze" && item.sourceHref
-                ? `<a class="source-link" href="${escapeHtml(safeUrl(item.sourceHref))}" target="_blank" rel="noreferrer">TVmaze #${escapeHtml(item.sourceId)} ↗</a>`
-                : "";
             const status = item.titleStatus === "vietnamese"
                 ? "Tên Việt từ TMDB"
                 : item.titleStatus === "tmdb-original"
@@ -212,7 +209,7 @@
                         <span>${escapeHtml(item.country)}</span>
                         <span data-status="${escapeHtml(item.titleStatus)}">${status}</span>
                     </footer>
-                    <div class="external-links">${sourceLink}${tmdbLink}</div>
+                    <div class="external-links">${tmdbLink}</div>
                 </article>
             `;
         }).join("");

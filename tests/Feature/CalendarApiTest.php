@@ -51,6 +51,10 @@ class CalendarApiTest extends TestCase
             ->assertJsonPath(
                 'items.0.tmdbHref',
                 'https://www.themoviedb.org/tv/42?language=vi-VN',
+            )
+            ->assertJsonPath(
+                'items.0.href',
+                'https://www.themoviedb.org/tv/42?language=vi-VN',
             );
     }
 
@@ -91,6 +95,10 @@ class CalendarApiTest extends TestCase
             ->assertJsonPath(
                 'items.0.tmdbHref',
                 'https://www.themoviedb.org/tv/42?language=vi-VN',
+            )
+            ->assertJsonPath(
+                'items.0.href',
+                'https://www.themoviedb.org/tv/42?language=vi-VN',
             );
     }
 
@@ -117,7 +125,7 @@ class CalendarApiTest extends TestCase
 
         Http::assertSentCount(1);
         Storage::disk('local')->assertExists(
-            'calendar-cache/laravel-v2/asia/'.now('Asia/Ho_Chi_Minh')->format('Y-m-d').'.json',
+            'calendar-cache/laravel-v3/asia/'.now('Asia/Ho_Chi_Minh')->format('Y-m-d').'.json',
         );
     }
 
@@ -150,7 +158,7 @@ class CalendarApiTest extends TestCase
             );
 
         Storage::disk('local')->assertExists(
-            'calendar-cache/laravel-v2/western/'
+            'calendar-cache/laravel-v3/western/'
                 .now('Asia/Ho_Chi_Minh')->format('Y-m-d').'.json',
         );
     }

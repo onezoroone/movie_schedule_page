@@ -121,7 +121,7 @@ button { cursor: pointer; }
 .movie-card > footer { margin-top: 11px; padding-top: 9px; display: flex; justify-content: space-between; gap: 8px; border-top: 1px solid var(--line); color: var(--muted); font-size: 8px; text-transform: uppercase; }
 .movie-card > footer span:last-child { color: #50745e; text-align: right; }
 .external-links { display: flex; flex-wrap: wrap; gap: 6px 12px; }
-.tmdb-link, .source-link {
+.tmdb-link {
     width: fit-content;
     margin-top: 8px;
     display: block;
@@ -129,7 +129,7 @@ button { cursor: pointer; }
     font: 700 9px/1.4 monospace;
     letter-spacing: .04em;
 }
-.tmdb-link:hover, .source-link:hover { color: var(--red); text-decoration: underline; }
+.tmdb-link:hover { color: var(--red); text-decoration: underline; }
 .skeleton .poster, .skeleton i { display: block; background: #d5d0c6; animation: pulse 1.3s infinite; }
 .skeleton i { width: 80%; height: 12px; margin-top: 10px; }
 .skeleton i:last-child { width: 55%; }

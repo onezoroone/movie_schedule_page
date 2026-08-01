@@ -7,7 +7,7 @@ use Illuminate\Support\Facades\Storage;
 
 class CalendarFileCache
 {
-    public const VERSION = 'laravel-v2';
+    public const VERSION = 'laravel-v3';
 
     /**
      * @param  array<string, mixed>  $day
