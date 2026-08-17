@@ -54,4 +54,17 @@ return [
         'check_interval' => (int) env('TVMAZE_CHECK_SECONDS', 1800),
     ],
 
+    'signal' => [
+        'enabled' => (bool) env('SIGNAL_ENABLED', false),
+        'base_url' => env('SIGNAL_API_URL', 'http://127.0.0.1:8080'),
+        'number' => env('SIGNAL_NUMBER'),
+        'recipients' => array_values(array_filter(array_map(
+            'trim',
+            explode(',', (string) env('SIGNAL_RECIPIENTS', '')),
+        ))),
+        'lead_minutes' => (int) env('SIGNAL_LEAD_MINUTES', 60),
+        'window_minutes' => (int) env('SIGNAL_WINDOW_MINUTES', 10),
+        'cache_store' => env('SIGNAL_CACHE_STORE', 'file'),
+    ],
+
 ];

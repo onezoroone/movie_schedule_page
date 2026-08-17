@@ -1,0 +1,11 @@
+services:
+  signal-api:
+    image: bbernhard/signal-cli-rest-api:latest
+    container_name: calendar-signal-api
+    restart: unless-stopped
+    environment:
+      MODE: native
+    ports:
+      - "127.0.0.1:8080:8080"
+    volumes:
+      - ./storage/app/private/signal-cli:/home/.local/share/signal-cli
